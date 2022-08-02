@@ -1,2 +1,2 @@
 # Procedural-Terrain-Generation
-Tests for procedural terrain generation (Heightmaps) using Perlin.js
+Tests for procedural terrain generation using Perlin.js
