@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procedural Terrain Generation v2</title>
+</head>
+
+<body>
+    <div id="options">
+        <h2>Options</h2>
+        <p>Seed: <input id="seed" placeholder="Seed"></p>
+        <p>Zoom: <input id="zoom" type="number" placeholder="Zoom" value="0.1"></p>
+        <p>
+            Dimensions:
+            <input id="width" type="number" placeholder="Width (max 350)" value="50">
+            x
+            <input id="depth" type="number" placeholder="Depth (max 350)" value="50">
+        </p>
+        <p>
+            <button onclick="Generate()">Generate</button>
+            <button onclick="seed = Math.random();seedE.value = '';Generate()">Regenerate (New seed)</button>
+        </p>
+    </div>
+
+    <div id="heightmap">
+        <h2>Height map</h2>
+        <table>
+            <tbody>
+
+            </tbody>
+        </table>
+    </div>
+
+    <div id="hypsomap">
+        <h2>Hypsometrical map</h2>
+        <table>
+            <tbody>
+
+            </tbody>
+        </table>
+    </div>
+
+    <div id="zonemap">
+        <h2>Height Zone map</h2>
+        <table>
+            <tbody>
+
+            </tbody>
+        </table>
+    </div>
+
+    <div id="hummap">
+        <h2>Humidity map</h2>
+        <table>
+            <tbody>
+
+            </tbody>
+        </table>
+    </div>
+
+    <div id="humzonemap">
+        <h2>Humidity Zone map</h2>
+        <table>
+            <tbody>
+
+            </tbody>
+        </table>
+    </div>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto&display=swap');
+
+        *{
+            box-sizing: border-box;
+            margin:0;
+            padding:0;
+        }
+        body{
+            font-family: 'Roboto', sans-serif;
+            background: #f2f2f2;
+        }
+
+        body > div{
+            display: inline-block;
+            background: #fff;
+            border-radius: 10px;
+            vertical-align: top;
+
+            padding: 10px;
+            margin:10px;
+        }
+        #options{
+            display: block;
+        }
+
+        h2,p,button{
+            padding:10px;
+        }
+
+        input{
+            padding: 5px;
+        }
+
+        table {
+            border-collapse: collapse;
+        }
+
+        td {
+            width: 5px;
+            height: 5px;
+            margin: 0;
+            padding: 0;
+        }
+
+        td div {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+
+    <script src="perlin.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.4.2/chroma.min.js"></script>
+    <script>
+        let seedE = document.querySelector('#seed')
+        let zoomE = document.querySelector('#zoom')
+        let widthE = document.querySelector('#width')
+        let depthE = document.querySelector('#depth')
+
+        let seed, zoom, width, depth
+
+        let heightMapE = document.querySelector('#heightmap>table>tbody')
+        let hypsoMapE = document.querySelector('#hypsomap>table>tbody')
+        let zoneMapE = document.querySelector('#zonemap>table>tbody')
+        let humMapE = document.querySelector('#hummap>table>tbody')
+        let humZoneMapE = document.querySelector('#humzonemap>table>tbody')
+
+
+        // Main generator methods
+
+        function GenerateHeightMapPreset(seed, zoom, width, depth) {
+            noise.seed(seed)
+            let map = []
+            for (var x = -width / 2; x < width / 2; x++) {
+                let row = []
+                for (var y = -depth / 2; y < depth / 2; y++) {
+                    let value = 2 * (noise.simplex2(x / 2500 / zoom, y / 2500 / zoom)) - (noise.perlin2(x / 100 / zoom, y / 100 / zoom) - noise.perlin2(x / 250 / zoom, y / 250 / zoom))
+                    let height = value * 50 + 5
+                    row.push(height)
+                }
+                map.push(row)
+            }
+            return map
+        }
+
+        function GenerateHeightMap(seed,zoom,width,depth){
+            let heightMap = GenerateHeightMapPreset(seed,zoom,width,depth)
+            let extmap = []
+            for (let x of heightMap) {
+                for (let y of x) {
+                    let t = Math.floor(y * 5)
+                    extmap.push(t)
+                }
+            }
+
+            let max = Math.max(...extmap)
+            let min = Math.min(...extmap)
+
+            let result = []
+            for(let x of heightMap){
+                let row = []
+                for(let y of x){
+                    let t = Math.floor(5*y - min) / (max - min)
+                    row.push(t)
+                }
+                result.push(row)
+            }
+            return result
+        }
+
+        function GenerateZoneMap(map){
+            let result = []
+            for(let x of map){
+                let row = []
+                for(let y of x){
+                    let t
+
+                    // rowy oceaniczne
+                    if(y < 0.1){
+                        t = 0
+                    }
+
+                    // głęboki ocean
+                    else if(y >= 0.1 && y < 0.3){
+                        t = 1
+                    }
+
+                    // ocean normalny
+                    else if(y >= 0.3 && y < 0.4){
+                        t = 2
+                    }
+
+                    // mielizny / rzeka
+                    else if(y >= 0.4 && y < 0.5){
+                        t = 3
+                    }
+
+                    // plaża
+                    else if(y >= 0.5 && y < 0.56){
+                        t = 4
+                    }
+
+                    // niziny
+                    else if(y >= 0.56 && y < 0.7){
+                        t = 5
+                    }
+
+                    // wyżyny
+                    else if(y >= 0.7 && y < 0.8){
+                        t = 6
+                    }
+
+                    // góry
+                    else if(y >= 0.8 && y < 0.95){
+                        t = 7
+                    }
+
+                    // wysokie góry
+                    else if(y >= 0.95){
+                        t = 8
+                    }
+                    row.push(t)
+                }
+                result.push(row)
+            }
+            return result
+        }
+
+        function GenerateHumMap(seed,zoom,width,depth){
+            return GenerateHeightMap(1-seed,zoom,width,depth)
+        }
+
+        function GenerateHumZoneMap(map){
+            let result = []
+            for(let x of map){
+                let row = []
+                for(let y of x){
+                    let t
+                    // suchy
+                    if(y < 0.33){
+                        t = 0
+                    }
+                    // umiarkowany
+                    else if(y >= 0.33 && y < 0.66){
+                        t = 1
+                    }
+                    // wilgotny
+                    else if(y >= 0.66){
+                        t = 2
+                    }
+                    row.push(t)
+                }
+                result.push(row)
+            }
+            return result
+        }
+
+        // Map visualization
+
+        function HeightBasic(perc){
+            scale = chroma.scale(
+                ['#000', '#fff']
+            )
+            return scale(perc/100).hex()
+        }
+
+        function HumBasic(perc){
+            scale = chroma.scale(
+                ['#fff','#182E63']
+            )
+            return scale(perc/100).hex()
+        }
+
+        function Hypsometrical(perc){
+            scale = chroma.scale(
+                ['#00004d', '#000552', '#000b56', '#00105b', '#00165f', '#001b64', '#002168', '#00266d', '#002b71', '#003176', '#00367a', '#003c7f', '#004183', '#004788', '#004c8c', '#005191', '#005795', '#005c9a', '#00629f', '#0067a3', '#006da8', '#0072ac', '#0078b1', '#007db5', '#0082ba', '#0088be', '#068dc1', '#0d91c3', '#1396c6', '#1a9bc9', '#20a0cb', '#27a4ce', '#2da9d0', '#33aed3', '#3ab3d6', '#40b7d8', '#47bcdb', '#4dc1dd', '#53c6e0', '#5acbe3', '#60cfe5', '#67d4e8', '#6dd9ea', '#74deed', '#7ae2ef', '#80e7f2', '#87ecf5', '#8df1f7', '#94f5fa', '#9afafc', '#0ab203', '#14b407', '#1fb60a', '#29b70e', '#33b911', '#3dbb15', '#47bd18', '#52bf1b', '#5cc11f', '#66c322', '#70c526', '#7ac729', '#85c82d', '#8fca30', '#99cc33', '#a3ce37', '#add03a', '#b8d23e', '#c2d441', '#ccd645', '#d6d848', '#e0d94b', '#ebdb4f', '#f5dd52', '#ffdf56', '#fbd652', '#f7cd4f', '#f3c44b', '#efbb48', '#eab245', '#e6aa41', '#e2a13e', '#de983a', '#da8f37', '#d68633', '#d27d30', '#ce742d', '#ca6b29', '#c56226', '#c15922', '#bd501f', '#b9471b', '#b53e18', '#b13615', '#ad2d11', '#a9240e', '#a51b0a', '#a11207', '#9c0903', '#980000']
+            )
+            return scale(perc/100).hex()
+        }
+
+        function Generate() {
+            if(seedE.value == ''){
+                seed = Math.random()
+                seedE.value = seed
+            }
+            else{
+                seed = seedE.value
+            }
+
+            heightMapE.innerHTML = ''
+            hypsoMapE.innerHTML = ''
+            zoneMapE.innerHTML = ''
+            humMapE.innerHTML = ''
+            humZoneMapE.innerHTML = ''
+
+            heightMap = GenerateHeightMap(seed, zoomE.value, widthE.value, depthE.value)
+            humMap = GenerateHumMap(seed, zoomE.value, widthE.value, depthE.value)
+
+            for (let x in heightMap) {
+                let row = heightMapE.insertRow()
+                for (let y in heightMap[x]) {
+                    let cell = row.insertCell()
+                    let inn = document.createElement('div')
+                    let fill = HeightBasic(100 * heightMap[x][y])
+                    inn.style.background = `${fill}`
+                    cell.append(inn)
+                }
+            }
+
+            for (let x in heightMap) {
+                let row = hypsoMapE.insertRow()
+                for (let y in heightMap[x]) {
+                    let cell = row.insertCell()
+                    let inn = document.createElement('div')
+                    let fill = Hypsometrical(100 * heightMap[x][y])
+                    inn.style.background = `${fill}`
+                    cell.append(inn)
+                }
+            }
+
+            let zoneMap = GenerateZoneMap(heightMap)
+            for (let x in zoneMap){
+                let row = zoneMapE.insertRow()
+                for (let y in zoneMap[x]) {
+                    let cell = row.insertCell()
+                    let inn = document.createElement('div')
+                    let fill
+                    if(zoneMap[x][y] == 0){
+                        fill = '#182E63'
+                    }
+                    if(zoneMap[x][y] == 1){
+                        fill = '#203E83'
+                    }
+                    if(zoneMap[x][y] == 2){
+                        fill = '#2C55B5'
+                    }
+                    if(zoneMap[x][y] == 3){
+                        fill = '#4A73D3'
+                    }
+                    if(zoneMap[x][y] == 4){
+                        fill = '#FCF6B1'
+                    }
+                    if(zoneMap[x][y] == 5){
+                        fill = '#52B319'
+                    }
+                    if(zoneMap[x][y] == 6){
+                        fill = '#49A117'
+                    }
+                    if(zoneMap[x][y] == 7){
+                        fill = '#3C474B'
+                    }
+                    if(zoneMap[x][y] == 8){
+                        fill = '#B9CBDF'
+                    }
+                    inn.style.background = `${fill}`
+                    cell.append(inn)
+                }
+            }
+
+            for (let x in humMap) {
+                let row = humMapE.insertRow()
+                for (let y in humMap[x]) {
+                    let cell = row.insertCell()
+                    let inn = document.createElement('div')
+                    let fill = HumBasic(100 * humMap[x][y])
+                    inn.style.background = `${fill}`
+                    cell.append(inn)
+                }
+            }
+
+            let humZoneMap = GenerateHumZoneMap(humMap)
+            for (let x in humZoneMap){
+                let row = humZoneMapE.insertRow()
+                for (let y in humZoneMap[x]) {
+                    let cell = row.insertCell()
+                    let inn = document.createElement('div')
+                    let fill
+                    if(humZoneMap[x][y] == 2){
+                        fill = '#182E63'
+                    }
+                    if(humZoneMap[x][y] == 1){
+                        fill = '#2C55B5'
+                    }
+                    if(humZoneMap[x][y] == 0){
+                        fill = '#fff'
+                    }
+                    inn.style.background = `${fill}`
+                    cell.append(inn)
+                }
+            }
+        }
+    </script>
+
+</body>
+
+</html>
